@@ -9,22 +9,27 @@ const state = {
   dragColumnGroup: null,
   dragInsertionIndex: null,
   confirmDestructive: false,
-  viewMode: 'groups',
+  viewMode: 'windows',
   pendingOps: [],
   mirrorMode: true,
   deleteGroupOnClose: false,
   organiseMode: 'groups',
-  tabOrders: {}
+  tabOrders: {},
+  searchTerm: ''
 };
 
 const el = {
   subtitle: document.getElementById("subtitle"),
   viewToggle: document.getElementById("viewToggle"),
+  searchInput: document.getElementById("searchInput"),
+  extractBtn: document.getElementById("extractBtn"),
   newGroupInput: document.getElementById("newGroupInput"),
   addGroupBtn: document.getElementById("addGroupBtn"),
   organiseMode: document.getElementById("organiseMode"),
   organiseBtn: document.getElementById("organiseBtn"),
   mirrorToggle: document.getElementById("mirrorToggle"),
+  confirmDestructiveToggle: document.getElementById("confirmDestructiveToggle"),
+  deleteGroupOnCloseToggle: document.getElementById("deleteGroupOnCloseToggle"),
   changeCounter: document.getElementById("changeCounter"),
   applyBtn: document.getElementById("applyBtn"),
   revertBtn: document.getElementById("revertBtn"),
@@ -81,26 +86,43 @@ function getVisibleTabs() {
 }
 
 function buildColumnsData() {
-  const tabs = getVisibleTabs();
+  const visibleTabs = getVisibleTabs();
+  // Apply search filter if any
+  let filteredTabs = visibleTabs;
+  if (state.searchTerm) {
+    const term = state.searchTerm.toLowerCase();
+    filteredTabs = visibleTabs.filter(tab => tab.title.toLowerCase().includes(term));
+  }
+  const filteredTabIds = new Set(filteredTabs.map(t => t.tabId));
   const columns = new Map();
 
   if (state.viewMode === 'windows') {
-    Object.entries(state.windowInfo || {}).forEach(([windowId, info]) => {
-      if (!shouldIncludeWindow(Number(windowId))) return;
+    // Get windows that have any filtered tabs
+    const windowEntries = Object.entries(state.windowInfo || {})
+      .filter(([windowId]) => shouldIncludeWindow(Number(windowId)))
+      .map(([windowId, info]) => ({
+        windowId: Number(windowId),
+        info,
+        hasVisible: (info.tabs || []).some(tab => filteredTabIds.has(tab.tabId))
+      }))
+      .filter(entry => entry.hasVisible)
+      .sort((a, b) => a.windowId - b.windowId); // numeric sort
+
+    windowEntries.forEach((entry, idx) => {
+      const { windowId, info } = entry;
       const key = `win-${windowId}`;
+      const seqNum = idx + 1;
+      const tabs = (info.tabs || []).filter(tab => filteredTabIds.has(tab.tabId));
       columns.set(key, {
         key,
-        title: info.title || `Window ${windowId}`,
-        tabs: (info.tabs || []).map(tab => ({
-          ...tab,
-          windowId: Number(windowId),
-          windowTitle: info.title
-        })),
+        title: `Window ${seqNum}`,
+        tabs,
         type: 'window',
         windowId: Number(windowId)
       });
     });
   } else {
+    // Groups view
     (state.groups || []).forEach((group) => {
       columns.set(group, {
         key: group,
@@ -115,7 +137,7 @@ function buildColumnsData() {
       tabs: [],
       type: 'group'
     });
-    tabs.forEach((tab) => {
+    filteredTabs.forEach((tab) => {
       const assigned = state.assignments?.[tab.tabId];
       const colKey = assigned && columns.has(assigned) ? assigned : 'Ungrouped';
       const col = columns.get(colKey);
@@ -373,7 +395,12 @@ function createCard(tab) {
   };
 
   title.textContent = tab.title || "Untitled";
-  badge.textContent = tab.windowTitle;
+  if (tab.windowTitle) {
+    badge.textContent = tab.windowTitle;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
 
   node.dataset.tabId = String(tab.tabId);
 
@@ -393,6 +420,15 @@ function createCard(tab) {
   node.addEventListener("dragend", () => {
     state.dragCardTabId = null;
     node.classList.remove("dragging");
+  });
+
+  node.addEventListener("dblclick", async () => {
+    try {
+      await chrome.tabs.update(tab.tabId, { active: true });
+      await chrome.windows.update(tab.windowId, { focused: true });
+    } catch (e) {
+      console.error(e);
+    }
   });
 
   return node;
@@ -428,20 +464,22 @@ function createColumn(descriptor) {
 
   header.append(titleEl, count);
 
-  const closeBtn = document.createElement("button");
-  closeBtn.className = "header-close";
-  closeBtn.textContent = "×";
-  closeBtn.title = type === 'group' ? "Close group" : "Close window";
-  closeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    if (type === 'group') {
-      executeOrQueue({ type: 'closeGroup', groupName: key });
-    } else if (type === 'window') {
-      // Confirm? According to spec, confirmDestructive only for Organise/Apply, so no confirm here.
-      executeOrQueue({ type: 'closeWindow', windowId });
-    }
-  });
-  header.appendChild(closeBtn);
+  // Add close button for groups (except Ungrouped) and windows
+  if (!(type === 'group' && key === 'Ungrouped')) {
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "header-close";
+    closeBtn.textContent = "×";
+    closeBtn.title = type === 'group' ? "Close group" : "Close window";
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (type === 'group') {
+        executeOrQueue({ type: 'closeGroup', groupName: key });
+      } else if (type === 'window') {
+        executeOrQueue({ type: 'closeWindow', windowId });
+      }
+    });
+    header.appendChild(closeBtn);
+  }
 
   header.addEventListener("dblclick", () => {
     if (state.filterGroup === key) {
@@ -561,6 +599,20 @@ function renderBoard() {
 
   const columnsData = buildColumnsData();
   el.board.textContent = "";
+
+  // Check if any tabs exist across all columns
+  let anyTabs = false;
+  columnsData.forEach(col => {
+    if (col.tabs.length > 0) anyTabs = true;
+  });
+  if (!anyTabs) {
+    const msg = document.createElement("p");
+    msg.className = "empty";
+    msg.textContent = "No matching tabs";
+    el.board.appendChild(msg);
+    return;
+  }
+
   if (state.viewMode === 'windows') {
     const sortedKeys = Array.from(columnsData.keys()).sort((a, b) => {
       const idA = parseInt(a.replace('win-', ''), 10);
@@ -601,6 +653,9 @@ async function refresh() {
   // Sync UI controls
   el.mirrorToggle.checked = state.mirrorMode;
   el.organiseMode.value = state.organiseMode;
+  if (el.confirmDestructiveToggle) el.confirmDestructiveToggle.checked = state.confirmDestructive;
+  if (el.deleteGroupOnCloseToggle) el.deleteGroupOnCloseToggle.checked = state.deleteGroupOnClose;
+  el.viewToggle.textContent = state.viewMode === 'groups' ? 'View: Windows' : 'View: Groups';
 
   updatePendingCounter();
   renderBoard();
@@ -613,17 +668,37 @@ el.viewToggle.addEventListener("click", () => {
 });
 
 el.addGroupBtn.addEventListener("click", async () => {
-  const value = el.newGroupInput.value.trim();
+  const value = el.newGroupInput.value;
   if (!value) {
     return;
   }
-  try {
-    await executeOrQueue({ type: 'addGroup', groupName: value });
-    el.newGroupInput.value = '';
-    el.newGroupInput.focus();
-  } catch (error) {
-    showError(error.message);
+  const names = value.split('\n').map(s => s.trim()).filter(s => s);
+  if (names.length === 0) return;
+  for (const name of names) {
+    try {
+      await executeOrQueue({ type: 'addGroup', groupName: name });
+    } catch (error) {
+      showError(error.message);
+    }
   }
+  el.newGroupInput.value = '';
+  el.newGroupInput.focus();
+});
+
+el.newGroupInput.addEventListener("paste", async (e) => {
+  e.preventDefault();
+  const paste = e.clipboardData.getData("text");
+  const names = paste.split('\n').map(s => s.trim()).filter(s => s);
+  if (names.length === 0) return;
+  for (const name of names) {
+    try {
+      await executeOrQueue({ type: 'addGroup', groupName: name });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  el.newGroupInput.value = '';
+  el.newGroupInput.focus();
 });
 
 el.newGroupInput.addEventListener("keydown", (e) => {
@@ -658,6 +733,57 @@ el.mirrorToggle.addEventListener("change", async () => {
   } catch (error) {
     showError(error.message);
     el.mirrorToggle.checked = state.mirrorMode;
+  }
+});
+
+el.searchInput.addEventListener("input", () => {
+  state.searchTerm = el.searchInput.value;
+  renderBoard();
+});
+
+el.extractBtn.addEventListener("click", async () => {
+  const term = el.searchInput.value.trim();
+  if (!term) {
+    showError("Please enter a search term to extract.");
+    return;
+  }
+  const visibleTabs = getVisibleTabs();
+  const matchingTabs = visibleTabs.filter(tab => tab.title.toLowerCase().includes(term.toLowerCase()));
+  if (matchingTabs.length === 0) {
+    showError("No matching tabs to extract.");
+    return;
+  }
+  if (state.confirmDestructive) {
+    const confirmed = window.confirm(`Extract ${matchingTabs.length} tab(s) to a new window?`);
+    if (!confirmed) return;
+  }
+  try {
+    await sendMessage({ type: 'extractTabsToWindow', tabIds: matchingTabs.map(t => t.tabId) });
+    await refresh();
+  } catch (error) {
+    showError(error.message);
+  }
+});
+
+el.confirmDestructiveToggle.addEventListener("change", async () => {
+  const newVal = el.confirmDestructiveToggle.checked;
+  try {
+    await sendMessage({ type: 'setAppSettings', settings: { confirmDestructive: newVal } });
+    state.confirmDestructive = newVal;
+  } catch (e) {
+    el.confirmDestructiveToggle.checked = !newVal;
+    showError(e.message);
+  }
+});
+
+el.deleteGroupOnCloseToggle.addEventListener("change", async () => {
+  const newVal = el.deleteGroupOnCloseToggle.checked;
+  try {
+    await sendMessage({ type: 'setAppSettings', settings: { deleteGroupOnClose: newVal } });
+    state.deleteGroupOnClose = newVal;
+  } catch (e) {
+    el.deleteGroupOnCloseToggle.checked = !newVal;
+    showError(e.message);
   }
 });
 

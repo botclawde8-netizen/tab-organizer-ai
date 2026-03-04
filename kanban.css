@@ -61,6 +61,19 @@ body {
   padding: 6px 10px;
 }
 
+#searchInput {
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  width: 140px;
+}
+
+#extractBtn {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .group-create {
   display: flex;
   gap: 6px;
@@ -103,6 +116,20 @@ body {
   gap: 4px;
   font-size: 12px;
   cursor: pointer;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 .pending-counter {

@@ -14,6 +14,8 @@
       </div>
       <div class="controls">
         <button id="viewToggle" type="button">View: Windows</button>
+        <input id="searchInput" type="text" placeholder="Search tabs..." title="Filter tabs by title" />
+        <button id="extractBtn" type="button" title="Move matching tabs to new window">Extract</button>
         <div class="group-create">
           <input id="newGroupInput" type="text" placeholder="New group name" />
           <button id="addGroupBtn" type="button">Add</button>
@@ -24,6 +26,8 @@
         </select>
         <button id="organiseBtn">Organise</button>
         <label class="mirror-toggle"><input type="checkbox" id="mirrorToggle">Mirror</label>
+        <label class="toggle"><input type="checkbox" id="confirmDestructiveToggle"> Confirm Before Changes</label>
+        <label class="toggle"><input type="checkbox" id="deleteGroupOnCloseToggle"> Delete Group on Close</label>
         <span id="changeCounter" class="pending-counter">0 pending</span>
         <button id="applyBtn" style="display:none">Apply</button>
         <button id="revertBtn" style="display:none">Revert</button>

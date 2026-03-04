@@ -434,6 +434,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           else resolve();
         });
       });
+      await broadcastRefresh();
       sendResponse({ ok: true });
       return;
     }
@@ -550,12 +551,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       for (const [groupName, tabs] of tabsByGroup.entries()) {
         const tabIds = tabs.map(t => t.tabId);
         if (tabIds.length === 0) continue;
-        const newWin = await chrome.windows.create({ focused: false });
+        // Create a new window with its default tab, then move our tabs, then close the default tab
+        const newWin = await chrome.windows.create({ focused: false, populate: true });
+        const defaultTabId = newWin.tabs?.[0]?.id;
+        // Move each tab into the new window
         for (const tabId of tabIds) {
           try {
             await chrome.tabs.move(tabId, { windowId: newWin.id, index: -1 });
           } catch (e) {
             // ignore closed tabs
+          }
+        }
+        // Close the default tab if it still exists
+        if (defaultTabId !== undefined) {
+          try {
+            await chrome.tabs.remove(defaultTabId);
+          } catch (e) {
+            // ignore if already removed
           }
         }
       }
@@ -576,6 +588,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           } catch (e) {
             // ignore
           }
+        }
+      }
+      await broadcastRefresh();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (type === "extractTabsToWindow") {
+      const tabIds = message.tabIds;
+      if (!Array.isArray(tabIds) || tabIds.length === 0) {
+        sendResponse({ ok: false, error: "No tab IDs provided" });
+        return;
+      }
+      // Create a new window with its default tab
+      const newWin = await chrome.windows.create({ focused: false, populate: true });
+      const defaultTabId = newWin.tabs?.[0]?.id;
+      // Move each provided tab into the new window
+      for (const tabId of tabIds) {
+        try {
+          await chrome.tabs.move(Number(tabId), { windowId: newWin.id, index: -1 });
+        } catch (e) {
+          // ignore errors (e.g., tab closed)
+        }
+      }
+      // Close the default tab if it still exists
+      if (defaultTabId !== undefined) {
+        try {
+          await chrome.tabs.remove(defaultTabId);
+        } catch (e) {
+          // ignore
         }
       }
       await broadcastRefresh();
