@@ -327,7 +327,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           selectedWindowIds: state.selectedWindowIds,
           useNativeGroups: state.useNativeGroups,
           apiKeySet: Boolean(state.apiKey),
-          confirmDestructive: state.confirmDestructive
+          confirmDestructive: state.confirmDestructive,
+          mirrorMode: state.mirrorMode,
+          deleteGroupOnClose: state.deleteGroupOnClose,
+          organiseMode: state.organiseMode,
+          tabOrders: state.tabOrders
         }
       });
       return;
@@ -467,6 +471,146 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     if (type === "setConfirmDestructive") {
       await setState({ confirmDestructive: Boolean(message.confirmDestructive) });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (type === "closeTab") {
+      const tabId = Number(message.tabId);
+      try {
+        await chrome.tabs.remove(tabId);
+        // Remove assignment for this tab
+        const current = await getState();
+        const nextAssign = { ...(current.assignments || {}) };
+        delete nextAssign[tabId];
+        await setState({ assignments: nextAssign });
+        await broadcastRefresh();
+        sendResponse({ ok: true });
+        return;
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message });
+        return;
+      }
+    }
+
+    if (type === "closeGroup") {
+      const state = await getState();
+      const groupName = message.groupName;
+      const tabIdsToClose = [];
+      Object.entries(state.assignments || {}).forEach(([tabIdKey, assignedGroup]) => {
+        if (assignedGroup === groupName) {
+          tabIdsToClose.push(Number(tabIdKey));
+        }
+      });
+      if (tabIdsToClose.length > 0) {
+        try {
+          await chrome.tabs.remove(tabIdsToClose);
+        } catch (error) {
+          // Ignore errors for already closed tabs.
+        }
+      }
+      if (state.deleteGroupOnClose) {
+        const newGroups = state.groups.filter(g => g !== groupName);
+        await setState({ groups: newGroups });
+      }
+      const newAssignments = { ...(state.assignments || {}) };
+      tabIdsToClose.forEach(tabId => delete newAssignments[tabId]);
+      await setState({ assignments: newAssignments });
+      await broadcastRefresh();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (type === "organiseIntoWindows") {
+      const state = await getState();
+      const windowInfo = await queryAllWindowData();
+      const selectedWindowIds = state.selectedWindowIds;
+      const useAll = selectedWindowIds == null;
+      const selectedSet = useAll ? null : new Set(selectedWindowIds);
+      const targetWindows = [];
+      Object.entries(windowInfo).forEach(([winId, info]) => {
+        if (useAll || selectedSet.has(Number(winId))) {
+          targetWindows.push({ id: Number(winId), info });
+        }
+      });
+      const allTabs = targetWindows.flatMap(({ info }) => info.tabs || []);
+      const tabsWithGroup = allTabs.filter(tab => {
+        const assigned = state.assignments?.[tab.tabId];
+        return assigned && assigned !== "Ungrouped";
+      });
+      const tabsByGroup = new Map();
+      tabsWithGroup.forEach(tab => {
+        const group = state.assignments[tab.tabId];
+        if (!tabsByGroup.has(group)) tabsByGroup.set(group, []);
+        tabsByGroup.get(group).push(tab);
+      });
+      // Keep track of which tab IDs are being moved
+      const movingTabIds = new Set(tabsWithGroup.map(t => t.tabId));
+      // Move each group's tabs to a new window
+      for (const [groupName, tabs] of tabsByGroup.entries()) {
+        const tabIds = tabs.map(t => t.tabId);
+        if (tabIds.length === 0) continue;
+        const newWin = await chrome.windows.create({ focused: false });
+        for (const tabId of tabIds) {
+          try {
+            await chrome.tabs.move(tabId, { windowId: newWin.id, index: -1 });
+          } catch (e) {
+            // ignore closed tabs
+          }
+        }
+      }
+      // Determine which original windows become empty (all their tabs were moved)
+      for (const { id: winId, info } of targetWindows) {
+        const originalTabIds = new Set((info.tabs || []).map(t => t.tabId));
+        // If every tab in this window was moved, close the window
+        let allMoved = true;
+        for (const tabId of originalTabIds) {
+          if (!movingTabIds.has(tabId)) {
+            allMoved = false;
+            break;
+          }
+        }
+        if (allMoved && originalTabIds.size > 0) {
+          try {
+            await chrome.windows.remove(winId);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+      await broadcastRefresh();
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (type === "setTabOrder") {
+      const { key, tabIds } = message;
+      if (!key || !Array.isArray(tabIds)) {
+        sendResponse({ ok: false, error: "Invalid parameters" });
+        return;
+      }
+      const state = await getState();
+      const newTabOrders = { ...(state.tabOrders || {}), [key]: tabIds };
+      await setState({ tabOrders: newTabOrders });
+      sendResponse({ ok: true });
+      return;
+    }
+
+    if (type === "setAppSettings") {
+      const { settings } = message;
+      if (!settings || typeof settings !== 'object') {
+        sendResponse({ ok: false, error: "Invalid settings" });
+        return;
+      }
+      const updates = {};
+      if (Object.prototype.hasOwnProperty.call(settings, 'mirrorMode')) updates.mirrorMode = Boolean(settings.mirrorMode);
+      if (Object.prototype.hasOwnProperty.call(settings, 'deleteGroupOnClose')) updates.deleteGroupOnClose = Boolean(settings.deleteGroupOnClose);
+      if (Object.prototype.hasOwnProperty.call(settings, 'organiseMode')) {
+        const mode = settings.organiseMode;
+        if (mode === 'groups' || mode === 'windows') updates.organiseMode = mode;
+      }
+      await setState(updates);
+      await broadcastRefresh();
       sendResponse({ ok: true });
       return;
     }

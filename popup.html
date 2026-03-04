@@ -23,6 +23,7 @@
         <div class="window-controls">
           <button id="selectAllBtn" type="button" class="secondary">Select All</button>
           <button id="minimizeAllBtn" type="button" class="secondary">Minimize All</button>
+          <button id="selectOpenWindowsBtn" type="button">Select Open Windows</button>
         </div>
         <h2>Windows</h2>
         <div id="windowsContainer" class="windows"></div>
@@ -32,6 +33,13 @@
         <label class="toggle">
           <input id="nativeGroupsToggle" type="checkbox" />
           <span>Use native Chrome tab groups</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="deleteGroupOnCloseToggle" type="checkbox" />
+          <span>Delete group when closing all its tabs</span>
         </label>
       </section>
 

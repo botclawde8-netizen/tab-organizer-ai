@@ -7,7 +7,11 @@
     windowInfo: {},
     groupIds: {},
     apiKey: "",
-    confirmDestructive: false
+    confirmDestructive: false,
+    mirrorMode: true,
+    deleteGroupOnClose: false,
+    organiseMode: 'groups',
+    tabOrders: {}
   };
 
   const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";

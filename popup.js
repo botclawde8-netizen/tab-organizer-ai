@@ -5,6 +5,7 @@ const state = {
   selectedWindowIds: null,
   groups: [],
   useNativeGroups: false,
+  deleteGroupOnClose: false,
   apiKey: "",
   confirmDestructive: false,
   expandedWindows: new Set()
@@ -16,7 +17,9 @@ const el = {
   windowsContainer: document.getElementById("windowsContainer"),
   selectAllBtn: document.getElementById("selectAllBtn"),
   minimizeAllBtn: document.getElementById("minimizeAllBtn"),
+  selectOpenWindowsBtn: document.getElementById("selectOpenWindowsBtn"),
   nativeGroupsToggle: document.getElementById("nativeGroupsToggle"),
+  deleteGroupOnCloseToggle: document.getElementById("deleteGroupOnCloseToggle"),
   confirmToggle: document.getElementById("confirmToggle"),
   groupsContainer: document.getElementById("groupsContainer"),
   addGroupBtn: document.getElementById("addGroupBtn"),
@@ -280,10 +283,12 @@ async function refreshSnapshot() {
   state.selectedWindowIds = data.selectedWindowIds || null;
   state.groups = data.groups || [];
   state.useNativeGroups = Boolean(data.useNativeGroups);
+  state.deleteGroupOnClose = Boolean(data.deleteGroupOnClose);
   state.confirmDestructive = data.confirmDestructive || false;
   state.apiKey = data.apiKeySet ? "********" : "";
 
   el.nativeGroupsToggle.checked = state.useNativeGroups;
+  el.deleteGroupOnCloseToggle.checked = state.deleteGroupOnClose;
   el.confirmToggle.checked = state.confirmDestructive;
   el.apiKeyInput.value = "";
   renderWindows();
@@ -392,6 +397,35 @@ el.minimizeAllBtn.addEventListener("click", async () => {
   }
 });
 
+el.selectOpenWindowsBtn.addEventListener("click", async () => {
+  const openWindowIds = [];
+  Object.entries(state.windowInfo).forEach(([winId, info]) => {
+    if (info.state && info.state !== 'minimized') {
+      openWindowIds.push(Number(winId));
+    }
+  });
+  try {
+    await sendMessage({ type: "setSelectedWindows", windowIds: openWindowIds });
+    state.selectedWindowIds = openWindowIds;
+    renderWindows();
+    setStatus(`Selected ${openWindowIds.length} open window${openWindowIds.length === 1 ? '' : 's'}.`);
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+el.deleteGroupOnCloseToggle.addEventListener("change", async () => {
+  const newVal = el.deleteGroupOnCloseToggle.checked;
+  try {
+    await sendMessage({ type: "setAppSettings", settings: { deleteGroupOnClose: newVal } });
+    state.deleteGroupOnClose = newVal;
+    setStatus("Setting updated.");
+  } catch (error) {
+    setStatus(error.message, true);
+    el.deleteGroupOnCloseToggle.checked = !newVal;
+  }
+});
+
 el.confirmToggle.addEventListener("change", async () => {
   const newVal = el.confirmToggle.checked;
   try {
@@ -408,7 +442,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== "local") {
     return;
   }
-  if (changes.groups || changes.selectedWindowIds || changes.useNativeGroups || changes.windowInfo) {
+  if (changes.groups || changes.selectedWindowIds || changes.useNativeGroups || changes.windowInfo || changes.deleteGroupOnClose) {
     refreshSnapshot().catch((error) => setStatus(error.message, true));
   }
 });
