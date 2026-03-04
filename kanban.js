@@ -85,6 +85,17 @@ function getVisibleTabs() {
   return out;
 }
 
+function getWindowRankMap() {
+  const windowIds = Object.keys(state.windowInfo || {})
+    .map(id => Number(id))
+    .sort((a, b) => a - b);
+  const map = new Map();
+  windowIds.forEach((id, idx) => {
+    map.set(id, idx + 1);
+  });
+  return map;
+}
+
 function buildColumnsData() {
   const visibleTabs = getVisibleTabs();
   // Apply search filter if any
@@ -395,10 +406,19 @@ function createCard(tab) {
   };
 
   title.textContent = tab.title || "Untitled";
-  if (tab.windowTitle) {
-    badge.textContent = tab.windowTitle;
-    badge.style.display = 'inline-block';
+
+  if (state.viewMode === 'groups') {
+    // Show window number badge in Groups view
+    const rankMap = getWindowRankMap();
+    const rank = rankMap.get(tab.windowId);
+    if (rank !== undefined) {
+      badge.textContent = rank;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
   } else {
+    // Windows view: hide badge entirely
     badge.style.display = 'none';
   }
 

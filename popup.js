@@ -240,20 +240,24 @@ function addGroupRow(groupName) {
     const names = paste.split('\n').map(s => s.trim()).filter(s => s);
     if (names.length === 0) return;
 
-    // Replace current row with first pasted group
-    const currentValue = input.value.trim();
-    const allNames = currentValue ? [currentValue, ...names] : names;
-    // Clear existing groups and rebuild from all names
-    state.groups = allNames;
+    // Append each pasted group to existing groups
+    const currentGroups = state.groups || [];
+    const newGroups = [...currentGroups];
+    const seen = new Set(currentGroups.map(g => g.toLowerCase()));
+    for (const name of names) {
+      const sanitized = sanitizeGroupName(name);
+      if (sanitized && !seen.has(sanitized.toLowerCase())) {
+        newGroups.push(sanitized);
+        seen.add(sanitized.toLowerCase());
+      }
+    }
+
+    state.groups = newGroups;
     await saveGroupsFromUi();
     renderGroups();
-    // After paste re-render, focus the last input
-    const inputs = el.groupsContainer.querySelectorAll('input');
-    if (inputs.length) {
-      const last = inputs[inputs.length - 1];
-      last.focus();
-      last.select();
-    }
+
+    // Clear input, do NOT focus
+    input.value = '';
   });
 
   input.addEventListener("blur", async () => {
