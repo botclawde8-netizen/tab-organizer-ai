@@ -33,6 +33,7 @@ const el = {
   deleteGroupOnCloseToggle: document.getElementById("deleteGroupOnCloseToggle"),
   changeCounter: document.getElementById("changeCounter"),
   applyBtn: document.getElementById("applyBtn"),
+  commitBtn: document.getElementById("commitBtn"),
   revertBtn: document.getElementById("revertBtn"),
   refreshBtn: document.getElementById("refreshBtn"),
   board: document.getElementById("board"),
@@ -185,17 +186,35 @@ function setSubtitle() {
 function updatePendingCounter() {
   const count = state.pendingOps.length;
   el.changeCounter.textContent = `${count} pending`;
-  if (state.mirrorMode) {
-    el.applyBtn.style.display = 'none';
+  updateControlsVisibility();
+}
+
+function updateControlsVisibility() {
+  const isGroupsView = state.viewMode === 'groups';
+  const isWindowsView = !isGroupsView;
+
+  // In Groups view: hide mirror toggle, hide commitBtn/revertBtn, show applyBtn and organiseBtn
+  // In Windows view: show mirror toggle, show commitBtn/revertBtn (when pending), hide applyBtn
+  if (isGroupsView) {
+    el.mirrorToggle.parentElement.style.display = 'none';
+    el.commitBtn.style.display = 'none';
     el.revertBtn.style.display = 'none';
+    el.applyBtn.style.display = 'inline-block';
+    el.organiseBtn.style.display = 'inline-block';
   } else {
-    el.applyBtn.style.display = count > 0 ? 'inline-block' : 'none';
-    el.revertBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    // Windows view
+    el.mirrorToggle.parentElement.style.display = 'inline-flex';
+    const hasPending = state.pendingOps.length > 0;
+    el.commitBtn.style.display = hasPending ? 'inline-block' : 'none';
+    el.revertBtn.style.display = hasPending ? 'inline-block' : 'none';
+    el.applyBtn.style.display = 'none';
+    el.organiseBtn.style.display = 'inline-block';
   }
 }
 
 function executeOrQueue(op) {
-  if (state.mirrorMode) {
+  // In groups view, always perform immediate (no pending), regardless of mirror mode
+  if (state.viewMode === 'groups' || state.mirrorMode) {
     return sendMessage(op);
   } else {
     state.pendingOps.push(op);
@@ -614,6 +633,36 @@ function showError(message) {
   el.board.appendChild(p);
 }
 
+function applyMode() {
+  return new Promise((resolve, reject) => {
+    if (state.confirmDestructive) {
+      if (!window.confirm("This will move tabs. Continue?")) {
+        reject(new Error("Cancelled by user"));
+        return;
+      }
+    }
+
+    const opType = state.organiseMode === 'groups' ? 'organise' : 'organiseIntoWindows';
+
+    // Disable the button to prevent double-clicks
+    el.organiseBtn.disabled = true;
+
+    showStatus("Organising...");
+
+    sendMessage({ type: opType })
+      .then(() => {
+        el.organiseBtn.disabled = false;
+        setTimeout(clearStatus, 3000);
+        resolve();
+      })
+      .catch((error) => {
+        el.organiseBtn.disabled = false;
+        showError(error.message);
+        reject(error);
+      });
+  });
+}
+
 function showStatus(message) {
   if (el.statusMessage) {
     el.statusMessage.textContent = message;
@@ -699,6 +748,7 @@ async function refresh() {
 el.viewToggle.addEventListener("click", () => {
   state.viewMode = state.viewMode === 'groups' ? 'windows' : 'groups';
   el.viewToggle.textContent = state.viewMode === 'groups' ? 'View: Windows' : 'View: Groups';
+  updateControlsVisibility();
   renderBoard();
 });
 
@@ -750,6 +800,7 @@ el.organiseMode.addEventListener("change", async () => {
       settings: { organiseMode: newMode }
     });
     state.organiseMode = newMode;
+    updateControlsVisibility();
   } catch (error) {
     showError(error.message);
     el.organiseMode.value = state.organiseMode;
@@ -823,27 +874,22 @@ el.deleteGroupOnCloseToggle.addEventListener("change", async () => {
 });
 
 el.organiseBtn.addEventListener("click", async () => {
-  if (state.confirmDestructive) {
-    if (!window.confirm("This will move tabs. Continue?")) {
-      return;
-    }
-  }
-  const opType = state.organiseMode === 'groups' ? 'organise' : 'organiseIntoWindows';
-  el.organiseBtn.disabled = true;
-  showStatus("Organising...");
   try {
-    await sendMessage({ type: opType });
-    // Refresh will be triggered by storage listener from background
+    await applyMode();
   } catch (error) {
-    showError(error.message);
-  } finally {
-    el.organiseBtn.disabled = false;
-    // Clear status after a short delay
-    setTimeout(clearStatus, 3000);
+    // Error already handled in applyMode
   }
 });
 
 el.applyBtn.addEventListener("click", async () => {
+  try {
+    await applyMode();
+  } catch (error) {
+    // Error already handled in applyMode
+  }
+});
+
+el.commitBtn.addEventListener("click", async () => {
   if (state.confirmDestructive && state.pendingOps.length > 0) {
     if (!window.confirm(`Apply ${state.pendingOps.length} pending changes?`)) {
       return;

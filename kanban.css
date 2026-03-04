@@ -147,12 +147,12 @@ body {
   padding: 2px 8px;
 }
 
-#applyBtn, #revertBtn {
+#applyBtn, #commitBtn, #revertBtn {
   font-size: 12px;
   padding: 6px 10px;
 }
 
-#applyBtn {
+#applyBtn, #commitBtn {
   background: var(--accent);
   border-color: var(--accent);
 }
