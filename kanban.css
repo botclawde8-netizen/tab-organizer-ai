@@ -33,6 +33,12 @@ body {
   backdrop-filter: blur(3px);
 }
 
+.topbar > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .topbar h1 {
   margin: 0;
   font-size: 18px;
@@ -42,6 +48,40 @@ body {
   margin: 2px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#viewToggle {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.group-create {
+  display: flex;
+  gap: 6px;
+}
+
+.group-create input {
+  width: 140px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.group-create button {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+#refreshBtn {
+  font-size: 12px;
+  padding: 6px 10px;
 }
 
 button {

@@ -6,12 +6,17 @@ const state = {
   useNativeGroups: false,
   filterGroup: null,
   dragCardTabId: null,
-  dragColumnGroup: null
+  dragColumnGroup: null,
+  confirmDestructive: false,
+  viewMode: 'groups' // 'groups' or 'windows'
 };
 
 const el = {
   subtitle: document.getElementById("subtitle"),
   refreshBtn: document.getElementById("refreshBtn"),
+  viewToggle: document.getElementById("viewToggle"),
+  newGroupInput: document.getElementById("newGroupInput"),
+  addGroupBtn: document.getElementById("addGroupBtn"),
   board: document.getElementById("board"),
   windowDropList: document.getElementById("windowDropList"),
   cardTemplate: document.getElementById("cardTemplate")
@@ -67,19 +72,31 @@ function buildColumnsData() {
   const tabs = getVisibleTabs();
   const columns = {};
 
-  (state.groups || []).forEach((group) => {
-    columns[group] = [];
-  });
-  columns.Ungrouped = [];
-
-  tabs.forEach((tab) => {
-    const assigned = state.assignments?.[tab.tabId];
-    if (assigned && Object.prototype.hasOwnProperty.call(columns, assigned)) {
-      columns[assigned].push(tab);
-    } else {
-      columns.Ungrouped.push(tab);
-    }
-  });
+  if (state.viewMode === 'windows') {
+    // Each window becomes a column
+    Object.entries(state.windowInfo || {}).forEach(([windowId, info]) => {
+      if (!shouldIncludeWindow(Number(windowId))) return;
+      columns[info.title || `Window ${windowId}`] = (info.tabs || []).map(tab => ({
+        ...tab,
+        windowId: Number(windowId),
+        windowTitle: info.title
+      }));
+    });
+  } else {
+    // Groups view
+    (state.groups || []).forEach((group) => {
+      columns[group] = [];
+    });
+    columns.Ungrouped = [];
+    tabs.forEach((tab) => {
+      const assigned = state.assignments?.[tab.tabId];
+      if (assigned && Object.prototype.hasOwnProperty.call(columns, assigned)) {
+        columns[assigned].push(tab);
+      } else {
+        columns.Ungrouped.push(tab);
+      }
+    });
+  }
 
   return columns;
 }
@@ -120,7 +137,9 @@ function renderWindowDropZones() {
     zone.append(title, meta);
 
     zone.addEventListener("dragover", (event) => {
-      if (!state.dragColumnGroup || state.dragColumnGroup === "Ungrouped") {
+      const isGroupDrag = state.dragColumnGroup && state.dragColumnGroup !== "Ungrouped";
+      const isTabDrag = state.dragCardTabId != null;
+      if (!isGroupDrag && !isTabDrag) {
         return;
       }
       event.preventDefault();
@@ -135,21 +154,43 @@ function renderWindowDropZones() {
       event.preventDefault();
       zone.classList.remove("drag-over");
 
-      if (!state.dragColumnGroup || state.dragColumnGroup === "Ungrouped") {
-        return;
-      }
+      const isGroupDrag = state.dragColumnGroup && state.dragColumnGroup !== "Ungrouped";
+      const isTabDrag = state.dragCardTabId != null;
 
-      try {
-        await sendMessage({
-          type: "moveGroupToWindow",
-          groupName: state.dragColumnGroup,
-          targetWindowId: Number(windowId)
-        });
-        await refresh();
-      } catch (error) {
-        showError(error.message);
-      } finally {
-        state.dragColumnGroup = null;
+      if (isGroupDrag) {
+        try {
+          await sendMessage({
+            type: "moveGroupToWindow",
+            groupName: state.dragColumnGroup,
+            targetWindowId: Number(windowId)
+          });
+          await refresh();
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          state.dragColumnGroup = null;
+        }
+      } else if (isTabDrag) {
+        const tabId = state.dragCardTabId;
+        if (state.confirmDestructive) {
+          const confirmed = window.confirm(`Move tab to window "${info.title || windowId}"?`);
+          if (!confirmed) {
+            state.dragCardTabId = null;
+            return;
+          }
+        }
+        try {
+          await sendMessage({
+            type: "moveTabToWindow",
+            tabId: tabId,
+            targetWindowId: Number(windowId)
+          });
+          await refresh();
+        } catch (error) {
+          showError(error.message);
+        } finally {
+          state.dragCardTabId = null;
+        }
       }
     });
 
@@ -309,6 +350,7 @@ async function refresh() {
   state.windowInfo = data.windowInfo || {};
   state.selectedWindowIds = data.selectedWindowIds || [];
   state.useNativeGroups = Boolean(data.useNativeGroups);
+  state.confirmDestructive = Boolean(data.confirmDestructive);
 
   if (state.filterGroup && !state.groups.includes(state.filterGroup) && state.filterGroup !== "Ungrouped") {
     state.filterGroup = null;
@@ -319,6 +361,36 @@ async function refresh() {
 
 el.refreshBtn.addEventListener("click", () => {
   refresh().catch((error) => showError(error.message));
+});
+
+// View toggle: switch between groups and windows view
+el.viewToggle.addEventListener("click", () => {
+  state.viewMode = state.viewMode === 'groups' ? 'windows' : 'groups';
+  el.viewToggle.textContent = state.viewMode === 'groups' ? 'View: Windows' : 'View: Groups';
+  renderBoard();
+});
+
+// Group creation: handle button click and Enter key
+el.addGroupBtn.addEventListener("click", async () => {
+  const value = el.newGroupInput.value.trim();
+  if (!value) {
+    return;
+  }
+  try {
+    await sendMessage({ type: 'addGroup', groupName: value });
+    el.newGroupInput.value = '';
+    el.newGroupInput.focus();
+    // Explicit refresh for responsiveness
+    await refresh();
+  } catch (error) {
+    showError(error.message);
+  }
+});
+
+el.newGroupInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    el.addGroupBtn.click();
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

@@ -363,6 +363,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return;
     }
 
+    if (type === "moveTabToWindow") {
+      const tabId = Number(message.tabId);
+      const targetWindowId = Number(message.targetWindowId);
+      try {
+        await chrome.tabs.move(tabId, { windowId: targetWindowId, index: -1 });
+        await broadcastRefresh();
+        sendResponse({ ok: true });
+        return;
+      } catch (error) {
+        sendResponse({ ok: false, error: error.message });
+        return;
+      }
+    }
+
     if (type === "setSelectedWindows") {
       const data = await setSelectedWindows(message.windowIds);
       sendResponse({ ok: true, data });
@@ -374,6 +388,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       await setState({ groups });
       await broadcastRefresh();
       sendResponse({ ok: true, data: { groups } });
+      return;
+    }
+
+    if (type === "addGroup") {
+      const state = await getState();
+      const groupName = (message.groupName || "").trim();
+      if (!groupName) {
+        sendResponse({ ok: false, error: "Group name cannot be empty" });
+        return;
+      }
+      if (state.groups.includes(groupName)) {
+        sendResponse({ ok: false, error: "Group already exists" });
+        return;
+      }
+      const newGroups = [...state.groups, groupName];
+      await setState({ groups: newGroups });
+      await broadcastRefresh();
+      sendResponse({ ok: true });
       return;
     }
 
