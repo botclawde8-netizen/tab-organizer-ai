@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Tab Organizer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <h1>AI Tab Organizer</h1>
+
+      <section class="card">
+        <h2>OpenRouter API Key</h2>
+        <div class="row">
+          <input id="apiKeyInput" type="password" placeholder="sk-or-v1-..." autocomplete="off" />
+          <button id="saveApiKeyBtn" type="button">Save</button>
+        </div>
+        <p class="hint">Stored locally in this browser profile only.</p>
+      </section>
+
+      <section class="card">
+        <h2>Windows</h2>
+        <div id="windowsContainer" class="windows"></div>
+      </section>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="nativeGroupsToggle" type="checkbox" />
+          <span>Use native Chrome tab groups</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Groups</h2>
+        <div id="groupsContainer" class="groups"></div>
+        <button id="addGroupBtn" type="button" class="secondary">Add group</button>
+      </section>
+
+      <section class="actions">
+        <button id="generateBtn" type="button">Generate Groups</button>
+        <button id="organiseBtn" type="button">Organise Tabs</button>
+        <button id="kanbanBtn" type="button" class="secondary">Open Kanban</button>
+      </section>
+
+      <p id="status" class="status" aria-live="polite"></p>
+    </main>
+
+    <script src="utils.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

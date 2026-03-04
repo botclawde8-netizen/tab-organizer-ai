@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "AI Tab Organizer",
+  "description": "Organize browser tabs into AI-assisted groups with popup controls and a Kanban board.",
+  "version": "1.0.0",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://openrouter.ai/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Tab Organizer"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "kanban.html",
+        "kanban.js",
+        "kanban.css",
+        "utils.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

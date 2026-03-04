@@ -1,0 +1,197 @@
+:root {
+  color-scheme: light;
+  --bg: #f7f8fc;
+  --panel: #ffffff;
+  --text: #1a1b1f;
+  --muted: #5d6473;
+  --line: #d8dce8;
+  --accent: #0d6efd;
+  --accent-2: #e8f0ff;
+  --danger: #c93838;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  width: 400px;
+  background: var(--bg);
+  font: 13px/1.35 "Segoe UI", Tahoma, sans-serif;
+  color: var(--text);
+}
+
+.popup {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+}
+
+button {
+  border: 1px solid #0b5ad3;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+}
+
+button.secondary {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hint {
+  color: var(--muted);
+  margin: 7px 0 0;
+}
+
+.windows,
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.window-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.window-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+}
+
+.expander {
+  width: 20px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0;
+  height: 20px;
+  line-height: 18px;
+}
+
+.window-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-list {
+  border-top: 1px solid var(--line);
+  padding: 6px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.tab-item img {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.tab-item span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.group-row {
+  display: flex;
+  gap: 6px;
+}
+
+.delete-btn {
+  width: 30px;
+  border-color: #efc3c3;
+  background: #fff3f3;
+  color: var(--danger);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#kanbanBtn {
+  grid-column: 1 / -1;
+}
+
+.status {
+  min-height: 18px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.empty {
+  color: var(--muted);
+  padding: 6px;
+}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Tab Organizer - Kanban</title>
+    <link rel="stylesheet" href="kanban.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>AI Tab Organizer</h1>
+        <p id="subtitle">Kanban view</p>
+      </div>
+      <button id="refreshBtn" type="button">Refresh</button>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <h2>Drop Group Here To Move Tabs</h2>
+        <div id="windowDropList" class="window-drop-list"></div>
+      </aside>
+
+      <section id="board" class="board" aria-label="Tab Kanban Board"></section>
+    </main>
+
+    <template id="cardTemplate">
+      <article class="tab-card" draggable="true">
+        <img class="tab-icon" alt="" />
+        <div class="tab-content">
+          <h3 class="tab-title"></h3>
+          <span class="tab-badge"></span>
+        </div>
+      </article>
+    </template>
+
+    <script src="utils.js"></script>
+    <script src="kanban.js"></script>
+  </body>
+</html>
