@@ -229,6 +229,23 @@ function addGroupRow(groupName) {
   input.type = "text";
   input.value = groupName || "";
   input.placeholder = "Group name";
+
+  // Paste multiple groups (newline separated)
+  input.addEventListener("paste", async (e) => {
+    e.preventDefault();
+    const paste = e.clipboardData.getData("text");
+    const names = paste.split('\n').map(s => s.trim()).filter(s => s);
+    if (names.length === 0) return;
+
+    // Replace current row with first pasted group
+    const currentValue = input.value.trim();
+    const allNames = currentValue ? [currentValue, ...names] : names;
+    // Clear existing groups and rebuild from all names
+    state.groups = allNames;
+    await saveGroupsFromUi();
+    renderGroups();
+  });
+
   input.addEventListener("blur", async () => {
     await saveGroupsFromUi();
     state.groups = getDraftGroups();
@@ -248,6 +265,10 @@ function addGroupRow(groupName) {
 
   row.append(input, del);
   el.groupsContainer.appendChild(row);
+
+  // Auto-select the new input
+  input.focus();
+  input.select();
 }
 
 async function refreshSnapshot() {

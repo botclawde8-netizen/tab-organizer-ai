@@ -7,7 +7,6 @@
     windowInfo: {},
     groupIds: {},
     apiKey: "",
-    lastSnapshot: null,
     confirmDestructive: false
   };
 
@@ -80,43 +79,45 @@
   }
 
   function computeTabDiff(currentWindowInfo, previousWindowInfo) {
-    const currentTabs = new Map();
-    const previousTabs = new Map();
+    // Disabled: token efficiency not implemented correctly
+    // const currentTabs = new Map();
+    // const previousTabs = new Map();
 
-    Object.entries(currentWindowInfo).forEach(([winId, win]) => {
-      (win.tabs || []).forEach(tab => {
-        currentTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
-      });
-    });
+    // Object.entries(currentWindowInfo).forEach(([winId, win]) => {
+    //   (win.tabs || []).forEach(tab => {
+    //     currentTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
+    //   });
+    // });
 
-    Object.entries(previousWindowInfo).forEach(([winId, win]) => {
-      (win.tabs || []).forEach(tab => {
-        previousTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
-      });
-    });
+    // Object.entries(previousWindowInfo).forEach(([winId, win]) => {
+    //   (win.tabs || []).forEach(tab => {
+    //     previousTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
+    //   });
+    // });
 
-    const added = [];
-    const removed = [];
-    const modified = [];
+    // const added = [];
+    // const removed = [];
+    // const modified = [];
 
-    for (const [id, tab] of currentTabs) {
-      if (!previousTabs.has(id)) {
-        added.push(tab);
-      } else {
-        const prev = previousTabs.get(id);
-        if (tab.title !== prev.title || tab.url !== prev.url) {
-          modified.push({ current: tab, previous: prev });
-        }
-      }
-    }
+    // for (const [id, tab] of currentTabs) {
+    //   if (!previousTabs.has(id)) {
+    //     added.push(tab);
+    //   } else {
+    //     const prev = previousTabs.get(id);
+    //     if (tab.title !== prev.title || tab.url !== prev.url) {
+    //       modified.push({ current: tab, previous: prev });
+    //     }
+    //   }
+    // }
 
-    for (const [id, tab] of previousTabs) {
-      if (!currentTabs.has(id)) {
-        removed.push(tab);
-      }
-    }
+    // for (const [id, tab] of previousTabs) {
+    //   if (!currentTabs.has(id)) {
+    //     removed.push(tab);
+    //   }
+    // }
 
-    return { added, removed, modified };
+    // return { added, removed, modified };
+    return { added: [], removed: [], modified: [] };
   }
 
   function escapeQuotes(str) {

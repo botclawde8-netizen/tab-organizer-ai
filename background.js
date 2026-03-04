@@ -91,66 +91,25 @@ function buildOrganisePrompt(tabs, groups) {
   ].join("\n");
 }
 
-function filterWindowInfo(windowInfo, selectedIds) {
-  if (selectedIds == null) return windowInfo;
-  const out = {};
-  selectedIds.forEach(id => {
-    if (windowInfo[id]) out[id] = windowInfo[id];
-  });
-  return out;
-}
+// Token efficiency (diff-based) - temporarily disabled
+// function filterWindowInfo(windowInfo, selectedIds) {
+//   if (selectedIds == null) return windowInfo;
+//   const out = {};
+//   selectedIds.forEach(id => {
+//     if (windowInfo[id]) out[id] = windowInfo[id];
+//   });
+//   return out;
+// }
 
-function buildGeneratePromptWithDiff(currentGroups, diff) {
-  const lines = [
-    "Analyze browser tab changes and suggest updated group names.",
-    "Current groups: " + JSON.stringify(currentGroups),
-    "Changes since last generation:"
-  ];
+// function buildGeneratePromptWithDiff(currentGroups, diff) {
+//   // Disabled
+//   return "";
+// }
 
-  if (diff.added.length) {
-    lines.push(`- Added ${diff.added.length} tab(s):`);
-    diff.added.forEach(tab => {
-      lines.push(`  • title: "${escapeQuotes(tab.title)}"`);
-    });
-  }
-  if (diff.removed.length) {
-    lines.push(`- Removed ${diff.removed.length} tab(s).`);
-  }
-  if (diff.modified.length) {
-    lines.push(`- Modified ${diff.modified.length} tab(s) (title/url changed).`);
-  }
-
-  lines.push(
-    "Requirements:",
-    "1. Return between 3 and 8 group names.",
-    "2. Names should be concise (1-4 words) and human-readable.",
-    "3. Consider both existing groups and new tab content; you may keep, rename, or add groups.",
-    "4. Return exactly this JSON shape: {\"groups\":[\"Group 1\",\"Group 2\"]}"
-  );
-
-  return lines.join("\n");
-}
-
-function buildOrganisePromptWithDiff(groups, newTabs) {
-  const lines = [
-    "Assign each of the following new/updated tabs to one of the existing groups.",
-    "Groups: " + JSON.stringify(groups),
-    "New/updated tabs:"
-  ];
-
-  newTabs.forEach(tab => {
-    lines.push(`  - tabId=${tab.tabId}; title="${escapeQuotes(tab.title)}"`);
-  });
-
-  lines.push(
-    "Rules:",
-    "1. Use only group names from the provided list.",
-    "2. Assign each tabId exactly once.",
-    "3. Return only JSON: {\"assignments\":{\"tabId\":\"Group\"}}"
-  );
-
-  return lines.join("\n");
-}
+// function buildOrganisePromptWithDiff(groups, newTabs) {
+//   // Disabled
+//   return "";
+// }
 
 async function broadcastRefresh() {
   try {
@@ -245,131 +204,58 @@ async function applyAssignments() {
 }
 
 async function generateGroups() {
-  const state = await getState();
-  const windowInfo = await queryAllWindowData();
-  const selectedWindowIds = state.selectedWindowIds;
-
-  const currentFiltered = filterWindowInfo(windowInfo, selectedWindowIds);
-  const lastSnapshot = state.lastSnapshot;
-  let groups;
-
-  if (lastSnapshot && lastSnapshot.windowInfo) {
-    const prevFiltered = filterWindowInfo(lastSnapshot.windowInfo, selectedWindowIds);
-    const diff = computeTabDiff(currentFiltered, prevFiltered);
-    if (diff.added.length === 0 && diff.removed.length === 0 && diff.modified.length === 0) {
-      groups = state.groups;
-    } else {
-      const prompt = buildGeneratePromptWithDiff(state.groups, diff);
-      const result = await callOpenRouter(prompt, { temperature: 0.2 });
-      groups = normalizeGroups(result.groups || []);
-    }
-  } else {
-    const tabs = createTabSummary(windowInfo, selectedWindowIds);
-    if (tabs.length === 0) {
-      return { groups: [] };
-    }
-    const prompt = buildGeneratePrompt(tabs);
-    const result = await callOpenRouter(prompt, { temperature: 0.2 });
-    groups = normalizeGroups(result.groups || []);
+  const { tabs } = await getSelectedTabSummary();
+  if (tabs.length === 0) {
+    return { groups: [] };
   }
 
-  const limitedGroups = groups.slice(0, 8);
-  await setState({
-    groups: limitedGroups,
-    lastSnapshot: {
-      windowInfo,
-      assignments: state.assignments,
-      timestamp: Date.now()
-    }
-  });
+  const prompt = buildGeneratePrompt(tabs);
+  const result = await callOpenRouter(prompt, { temperature: 0.2 });
+
+  const proposed = normalizeGroups(result.groups || []);
+  const groups = proposed.slice(0, 8);
+
+  await setState({ groups });
   await broadcastRefresh();
-  return { groups: limitedGroups };
+
+  return { groups };
 }
 
 async function organiseTabs() {
-  const state = await getState();
-  const windowInfo = await queryAllWindowData();
+  const { tabs, state } = await getSelectedTabSummary();
   const groups = normalizeGroups(state.groups || []);
+
   if (!groups.length) {
     throw new Error("Please add at least one group before organizing tabs.");
   }
 
-  const selectedWindowIds = state.selectedWindowIds;
-  const useAll = selectedWindowIds == null;
-
-  // Gather visible tabs (for live tab set)
-  const visibleTabs = [];
-  Object.entries(windowInfo).forEach(([winId, info]) => {
-    const numericId = Number(winId);
-    if (!useAll && !selectedWindowIds.includes(numericId)) return;
-    visibleTabs.push(...(info.tabs || []));
-  });
-  const liveTabIds = new Set(visibleTabs.map(t => t.tabId));
-
-  const lastSnapshot = state.lastSnapshot;
-  let assignments;
-
-  if (lastSnapshot && lastSnapshot.windowInfo && lastSnapshot.assignments) {
-    const filter = (winInfo) => {
-      if (useAll) return winInfo;
-      const out = {};
-      selectedWindowIds.forEach(id => {
-        if (winInfo[id]) out[id] = winInfo[id];
-      });
-      return out;
-    };
-    const currentFiltered = filter(windowInfo);
-    const prevFiltered = filter(lastSnapshot.windowInfo);
-    const diff = computeTabDiff(currentFiltered, prevFiltered);
-    const newTabs = [
-      ...diff.added,
-      ...diff.modified.map(m => m.current)
-    ];
-
-    if (newTabs.length === 0) {
-      assignments = Object.fromEntries(
-        Object.entries(state.assignments || {}).filter(([tid]) => liveTabIds.has(Number(tid)))
-      );
-    } else {
-      const prompt = buildOrganisePromptWithDiff(groups, newTabs);
-      const result = await callOpenRouter(prompt, { temperature: 0.1 });
-      const newAssignmentsRaw = result.assignments || {};
-      const validNew = {};
-      Object.entries(newAssignmentsRaw).forEach(([tabIdKey, groupName]) => {
-        const tabId = Number(tabIdKey);
-        if (newTabs.some(t => t.tabId === tabId) && groups.includes(groupName)) {
-          validNew[tabId] = groupName;
-        }
-      });
-      const base = Object.fromEntries(
-        Object.entries(state.assignments || {}).filter(([tid]) => liveTabIds.has(Number(tid)))
-      );
-      assignments = { ...base, ...validNew };
-    }
-  } else {
-    const tabs = createTabSummary(windowInfo, selectedWindowIds);
-    if (tabs.length === 0) {
-      await setState({ assignments: {} });
-      await broadcastRefresh();
-      return { assignments: {} };
-    }
-    const prompt = buildOrganisePrompt(tabs, groups);
-    const result = await callOpenRouter(prompt, { temperature: 0.1 });
-    let rawAssignments = result.assignments || {};
-    assignments = Object.fromEntries(
-      Object.entries(rawAssignments).filter(([tid]) => liveTabIds.has(Number(tid)) && groups.includes(rawAssignments[tid]))
-    );
+  if (tabs.length === 0) {
+    await setState({ assignments: {} });
+    return { assignments: {} };
   }
 
-  await setState({
-    assignments,
-    lastSnapshot: {
-      windowInfo,
-      assignments,
-      timestamp: Date.now()
+  const prompt = buildOrganisePrompt(tabs, groups);
+  const result = await callOpenRouter(prompt, { temperature: 0.1 });
+
+  const incomingAssignments = result.assignments || {};
+  const validGroupSet = new Set(groups);
+  const tabIdSet = new Set(tabs.map((tab) => tab.tabId));
+
+  const assignments = {};
+  Object.entries(incomingAssignments).forEach(([tabIdKey, groupName]) => {
+    const tabId = Number(tabIdKey);
+    if (!tabIdSet.has(tabId)) {
+      return;
     }
+    if (!validGroupSet.has(groupName)) {
+      return;
+    }
+    assignments[tabId] = groupName;
   });
+
+  await setState({ assignments });
   await applyAssignments();
+
   return { assignments };
 }
 
