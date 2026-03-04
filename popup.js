@@ -244,6 +244,13 @@ function addGroupRow(groupName) {
     state.groups = allNames;
     await saveGroupsFromUi();
     renderGroups();
+    // After paste re-render, focus the last input
+    const inputs = el.groupsContainer.querySelectorAll('input');
+    if (inputs.length) {
+      const last = inputs[inputs.length - 1];
+      last.focus();
+      last.select();
+    }
   });
 
   input.addEventListener("blur", async () => {
@@ -265,10 +272,6 @@ function addGroupRow(groupName) {
 
   row.append(input, del);
   el.groupsContainer.appendChild(row);
-
-  // Auto-select the new input
-  input.focus();
-  input.select();
 }
 
 async function refreshSnapshot() {
@@ -322,6 +325,12 @@ el.nativeGroupsToggle.addEventListener("change", async () => {
 
 el.addGroupBtn.addEventListener("click", () => {
   addGroupRow("");
+  const inputs = el.groupsContainer.querySelectorAll('input');
+  if (inputs.length) {
+    const last = inputs[inputs.length - 1];
+    last.focus();
+    last.select();
+  }
 });
 
 el.generateBtn.addEventListener("click", async () => {
