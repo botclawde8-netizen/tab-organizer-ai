@@ -11,26 +11,27 @@
       <div>
         <h1>AI Tab Organizer</h1>
         <p id="subtitle">Kanban view</p>
+        <p id="statusMessage" class="status-message"></p>
       </div>
       <div class="controls">
         <button id="viewToggle" type="button">View: Windows</button>
-        <input id="searchInput" type="text" placeholder="Search tabs..." title="Filter tabs by title" />
-        <button id="extractBtn" type="button" title="Move matching tabs to new window">Extract</button>
         <div class="group-create">
           <input id="newGroupInput" type="text" placeholder="New group name" />
           <button id="addGroupBtn" type="button">Add</button>
         </div>
+        <input id="searchInput" type="text" placeholder="Search tabs..." title="Filter tabs by title" />
+        <button id="extractBtn" type="button" title="Move matching tabs to new window">Extract</button>
+        <button id="applyBtn" style="display:none">Apply</button>
+        <button id="revertBtn" style="display:none">Revert</button>
         <select id="organiseMode">
           <option value="groups">Create Chrome tab groups</option>
           <option value="windows">Separate into windows</option>
         </select>
         <button id="organiseBtn">Organise</button>
         <label class="mirror-toggle"><input type="checkbox" id="mirrorToggle">Mirror</label>
+        <span id="changeCounter" class="pending-counter">0 pending</span>
         <label class="toggle"><input type="checkbox" id="confirmDestructiveToggle"> Confirm Before Changes</label>
         <label class="toggle"><input type="checkbox" id="deleteGroupOnCloseToggle"> Delete Group on Close</label>
-        <span id="changeCounter" class="pending-counter">0 pending</span>
-        <button id="applyBtn" style="display:none">Apply</button>
-        <button id="revertBtn" style="display:none">Revert</button>
         <button id="refreshBtn" type="button">Refresh</button>
       </div>
     </header>

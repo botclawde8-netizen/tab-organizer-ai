@@ -20,6 +20,7 @@ const state = {
 
 const el = {
   subtitle: document.getElementById("subtitle"),
+  statusMessage: document.getElementById("statusMessage"),
   viewToggle: document.getElementById("viewToggle"),
   searchInput: document.getElementById("searchInput"),
   extractBtn: document.getElementById("extractBtn"),
@@ -613,6 +614,20 @@ function showError(message) {
   el.board.appendChild(p);
 }
 
+function showStatus(message) {
+  if (el.statusMessage) {
+    el.statusMessage.textContent = message;
+    el.statusMessage.style.display = 'block';
+  }
+}
+
+function clearStatus() {
+  if (el.statusMessage) {
+    el.statusMessage.textContent = '';
+    el.statusMessage.style.display = 'none';
+  }
+}
+
 function renderBoard() {
   setSubtitle();
   renderWindowDropZones();
@@ -809,15 +824,23 @@ el.deleteGroupOnCloseToggle.addEventListener("change", async () => {
 
 el.organiseBtn.addEventListener("click", async () => {
   if (state.confirmDestructive) {
-    const msg = state.organiseMode === 'groups'
-      ? "Organise tabs into groups? This will reassign all tabs."
-      : "Organise tabs into windows? This will move tabs to new windows.";
-    if (!window.confirm(msg)) {
+    if (!window.confirm("This will move tabs. Continue?")) {
       return;
     }
   }
   const opType = state.organiseMode === 'groups' ? 'organise' : 'organiseIntoWindows';
-  await executeOrQueue({ type: opType });
+  el.organiseBtn.disabled = true;
+  showStatus("Organising...");
+  try {
+    await sendMessage({ type: opType });
+    // Refresh will be triggered by storage listener from background
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    el.organiseBtn.disabled = false;
+    // Clear status after a short delay
+    setTimeout(clearStatus, 3000);
+  }
 });
 
 el.applyBtn.addEventListener("click", async () => {
