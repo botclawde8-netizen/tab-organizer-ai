@@ -20,6 +20,10 @@
       </section>
 
       <section class="card">
+        <div class="window-controls">
+          <button id="selectAllBtn" type="button" class="secondary">Select All</button>
+          <button id="minimizeAllBtn" type="button" class="secondary">Minimize All</button>
+        </div>
         <h2>Windows</h2>
         <div id="windowsContainer" class="windows"></div>
       </section>
@@ -28,6 +32,13 @@
         <label class="toggle">
           <input id="nativeGroupsToggle" type="checkbox" />
           <span>Use native Chrome tab groups</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <label class="toggle">
+          <input id="confirmToggle" type="checkbox" />
+          <span>Confirm before closing/minimizing windows</span>
         </label>
       </section>
 

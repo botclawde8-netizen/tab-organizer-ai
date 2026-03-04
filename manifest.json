@@ -6,7 +6,8 @@
   "permissions": [
     "tabs",
     "tabGroups",
-    "storage"
+    "storage",
+    "windows"
   ],
   "host_permissions": [
     "https://openrouter.ai/*"

@@ -2,11 +2,13 @@
   const DEFAULT_STATE = {
     groups: [],
     assignments: {},
-    selectedWindowIds: [],
+    selectedWindowIds: null,
     useNativeGroups: false,
     windowInfo: {},
     groupIds: {},
-    apiKey: ""
+    apiKey: "",
+    lastSnapshot: null,
+    confirmDestructive: false
   };
 
   const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -77,10 +79,53 @@
     return `Window ${windowObj.id}`;
   }
 
-  function createTabSummary(windowInfo, selectedWindowIds) {
-    const selectedSet = new Set(selectedWindowIds || []);
-    const useAll = selectedSet.size === 0;
+  function computeTabDiff(currentWindowInfo, previousWindowInfo) {
+    const currentTabs = new Map();
+    const previousTabs = new Map();
 
+    Object.entries(currentWindowInfo).forEach(([winId, win]) => {
+      (win.tabs || []).forEach(tab => {
+        currentTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
+      });
+    });
+
+    Object.entries(previousWindowInfo).forEach(([winId, win]) => {
+      (win.tabs || []).forEach(tab => {
+        previousTabs.set(tab.tabId, { ...tab, windowId: Number(winId), windowTitle: win.title });
+      });
+    });
+
+    const added = [];
+    const removed = [];
+    const modified = [];
+
+    for (const [id, tab] of currentTabs) {
+      if (!previousTabs.has(id)) {
+        added.push(tab);
+      } else {
+        const prev = previousTabs.get(id);
+        if (tab.title !== prev.title || tab.url !== prev.url) {
+          modified.push({ current: tab, previous: prev });
+        }
+      }
+    }
+
+    for (const [id, tab] of previousTabs) {
+      if (!currentTabs.has(id)) {
+        removed.push(tab);
+      }
+    }
+
+    return { added, removed, modified };
+  }
+
+  function escapeQuotes(str) {
+    return String(str || "").replace(/"/g, '\\"');
+  }
+
+  function createTabSummary(windowInfo, selectedWindowIds) {
+    const useAll = selectedWindowIds == null;
+    const selectedSet = useAll ? null : new Set(selectedWindowIds);
     const items = [];
     Object.entries(windowInfo || {}).forEach(([windowId, info]) => {
       const numericId = Number(windowId);

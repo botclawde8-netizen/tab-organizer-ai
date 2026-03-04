@@ -2,10 +2,11 @@ const { getState, setState, sanitizeGroupName } = self.TabOrganizerUtils;
 
 const state = {
   windowInfo: {},
-  selectedWindowIds: [],
+  selectedWindowIds: null,
   groups: [],
   useNativeGroups: false,
   apiKey: "",
+  confirmDestructive: false,
   expandedWindows: new Set()
 };
 
@@ -13,7 +14,10 @@ const el = {
   apiKeyInput: document.getElementById("apiKeyInput"),
   saveApiKeyBtn: document.getElementById("saveApiKeyBtn"),
   windowsContainer: document.getElementById("windowsContainer"),
+  selectAllBtn: document.getElementById("selectAllBtn"),
+  minimizeAllBtn: document.getElementById("minimizeAllBtn"),
   nativeGroupsToggle: document.getElementById("nativeGroupsToggle"),
+  confirmToggle: document.getElementById("confirmToggle"),
   groupsContainer: document.getElementById("groupsContainer"),
   addGroupBtn: document.getElementById("addGroupBtn"),
   generateBtn: document.getElementById("generateBtn"),
@@ -65,8 +69,11 @@ function createTabRow(tab) {
 function renderWindows() {
   const windows = Object.entries(state.windowInfo);
   el.windowsContainer.textContent = "";
-  const hasExplicitSelection = state.selectedWindowIds.length > 0;
   const allWindowIds = windows.map(([windowId]) => Number(windowId));
+
+  // Update Select All button text
+  const allSelected = state.selectedWindowIds == null || (Array.isArray(state.selectedWindowIds) && state.selectedWindowIds.length === allWindowIds.length && allWindowIds.every(id => state.selectedWindowIds.includes(id)));
+  el.selectAllBtn.textContent = allSelected ? "Deselect All" : "Select All";
 
   if (!windows.length) {
     const empty = document.createElement("p");
@@ -80,6 +87,10 @@ function renderWindows() {
     const numericId = Number(windowId);
     const wrapper = document.createElement("div");
     wrapper.className = "window-row";
+    // Highlight open windows (not minimized)
+    if (info.state && info.state !== 'minimized') {
+      wrapper.classList.add("open-window");
+    }
 
     const head = document.createElement("div");
     head.className = "window-head";
@@ -89,7 +100,8 @@ function renderWindows() {
     expander.className = "expander";
     const expanded = state.expandedWindows.has(numericId);
     expander.textContent = expanded ? "▼" : "▶";
-    expander.addEventListener("click", () => {
+    expander.addEventListener("click", (e) => {
+      e.stopPropagation();
       if (state.expandedWindows.has(numericId)) {
         state.expandedWindows.delete(numericId);
       } else {
@@ -100,27 +112,69 @@ function renderWindows() {
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = hasExplicitSelection ? state.selectedWindowIds.includes(numericId) : true;
+    const explicit = state.selectedWindowIds != null;
+    checkbox.checked = explicit ? state.selectedWindowIds.includes(numericId) : true;
     checkbox.addEventListener("change", async () => {
-      const selected = new Set(
-        state.selectedWindowIds.length > 0 ? state.selectedWindowIds : allWindowIds
-      );
+      const currentExplicit = state.selectedWindowIds != null;
+      let selectedSet = currentExplicit ? new Set(state.selectedWindowIds) : new Set(allWindowIds);
       if (checkbox.checked) {
-        selected.add(numericId);
+        selectedSet.add(numericId);
       } else {
-        selected.delete(numericId);
+        selectedSet.delete(numericId);
       }
-      state.selectedWindowIds = Array.from(selected);
-      await sendMessage({ type: "setSelectedWindows", windowIds: state.selectedWindowIds });
-      setStatus("Window selection updated.");
+      let newSelection;
+      if (selectedSet.size === allWindowIds.length) {
+        newSelection = null;
+      } else {
+        newSelection = Array.from(selectedSet);
+      }
+      state.selectedWindowIds = newSelection;
+      try {
+        await sendMessage({ type: "setSelectedWindows", windowIds: newSelection });
+        setStatus("Window selection updated.");
+        renderWindows();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
     });
 
     const title = document.createElement("div");
     title.className = "window-title";
     title.textContent = `${info.title || `Window ${windowId}`} (${(info.tabs || []).length} tabs)`;
 
-    head.append(expander, checkbox, title);
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "close-window-btn";
+    closeBtn.textContent = "×";
+    closeBtn.title = "Close window";
+    closeBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const confirmed = !state.confirmDestructive || window.confirm(`Close window "${info.title}"?`);
+      if (confirmed) {
+        try {
+          await sendMessage({ type: "closeWindow", windowId: numericId });
+          await refreshSnapshot();
+        } catch (err) {
+          setStatus(err.message, true);
+        }
+      }
+    });
+
+    head.append(expander, checkbox, title, closeBtn);
     wrapper.appendChild(head);
+
+    head.addEventListener("dblclick", async (e) => {
+      if (e.target === closeBtn) return;
+      const confirmed = !state.confirmDestructive || window.confirm(`Toggle minimize for window "${info.title}"?`);
+      if (confirmed) {
+        try {
+          await sendMessage({ type: "toggleWindowMinimize", windowId: numericId });
+          await refreshSnapshot();
+        } catch (err) {
+          setStatus(err.message, true);
+        }
+      }
+    });
 
     const tabList = document.createElement("div");
     tabList.className = "tab-list";
@@ -199,12 +253,14 @@ function addGroupRow(groupName) {
 async function refreshSnapshot() {
   const data = await sendMessage({ type: "getTabData" });
   state.windowInfo = data.windowInfo || {};
-  state.selectedWindowIds = data.selectedWindowIds || [];
+  state.selectedWindowIds = data.selectedWindowIds || null;
   state.groups = data.groups || [];
   state.useNativeGroups = Boolean(data.useNativeGroups);
+  state.confirmDestructive = data.confirmDestructive || false;
   state.apiKey = data.apiKeySet ? "********" : "";
 
   el.nativeGroupsToggle.checked = state.useNativeGroups;
+  el.confirmToggle.checked = state.confirmDestructive;
   el.apiKeyInput.value = "";
   renderWindows();
   renderGroups();
@@ -279,6 +335,43 @@ el.organiseBtn.addEventListener("click", async () => {
 
 el.kanbanBtn.addEventListener("click", () => {
   chrome.tabs.create({ url: chrome.runtime.getURL("kanban.html") });
+});
+
+el.selectAllBtn.addEventListener("click", async () => {
+  const allWindowIds = Object.keys(state.windowInfo).map(Number);
+  const allSelected = state.selectedWindowIds == null || (Array.isArray(state.selectedWindowIds) && state.selectedWindowIds.length === allWindowIds.length && allWindowIds.every(id => state.selectedWindowIds.includes(id)));
+  const newSelection = allSelected ? [] : null;
+  state.selectedWindowIds = newSelection;
+  try {
+    await sendMessage({ type: "setSelectedWindows", windowIds: newSelection });
+    renderWindows();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+
+el.minimizeAllBtn.addEventListener("click", async () => {
+  const confirmed = !state.confirmDestructive || window.confirm("Minimize all windows?");
+  if (confirmed) {
+    try {
+      await sendMessage({ type: "minimizeAll" });
+      await refreshSnapshot();
+    } catch (error) {
+      setStatus(error.message, true);
+    }
+  }
+});
+
+el.confirmToggle.addEventListener("change", async () => {
+  const newVal = el.confirmToggle.checked;
+  try {
+    await sendMessage({ type: "setConfirmDestructive", confirmDestructive: newVal });
+    state.confirmDestructive = newVal;
+    setStatus("Confirmation setting updated.");
+  } catch (error) {
+    setStatus(error.message, true);
+    el.confirmToggle.checked = !newVal;
+  }
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
