@@ -44,6 +44,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 10px;
+  position: relative;
 }
 
 .row {
@@ -218,4 +219,23 @@ button:disabled {
 .empty {
   color: var(--muted);
   padding: 6px;
+}
+
+.remove-all-container {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+}
+
+.remove-all-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.remove-all-btn:hover {
+  text-decoration: underline;
 }

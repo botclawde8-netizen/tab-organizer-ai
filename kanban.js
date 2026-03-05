@@ -684,7 +684,7 @@ function copyLinks() {
     showError("No tabs to copy.");
     return;
   }
-  let output = "Tabs\n\n";
+  let output = "Collection\n\n";
   if (state.viewMode === 'groups') {
     const order = [...state.groups, 'Ungrouped'];
     const groupMap = new Map();
@@ -702,12 +702,11 @@ function copyLinks() {
       if (!tabs || tabs.length === 0) return;
       output += `${group}\n`;
       tabs.forEach(tab => {
-        output += `${tab.title}\n${tab.url}\n`;
+        output += `\t${tab.title}\n\t${tab.url}\n`;
       });
       if (idx < order.length - 1) output += "\n";
     });
   } else {
-    const rankMap = getWindowRankMap();
     const windowMap = new Map();
     visibleTabs.forEach(tab => {
       const winId = tab.windowId;
@@ -717,10 +716,9 @@ function copyLinks() {
     const sortedIds = Array.from(windowMap.keys()).sort((a, b) => a - b);
     sortedIds.forEach((winId, idx) => {
       const tabs = windowMap.get(winId);
-      const rank = rankMap.get(winId);
-      output += `Window ${rank}\n`;
+      output += `Window ${winId}\n`;
       tabs.forEach(tab => {
-        output += `${tab.title}\n${tab.url}\n`;
+        output += `\t${tab.title}\n\t${tab.url}\n`;
       });
       if (idx < sortedIds.length - 1) output += "\n";
     });

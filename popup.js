@@ -22,6 +22,7 @@ const el = {
   deleteGroupOnCloseToggle: document.getElementById("deleteGroupOnCloseToggle"),
   confirmToggle: document.getElementById("confirmToggle"),
   groupsContainer: document.getElementById("groupsContainer"),
+  removeAllGroupsBtn: document.getElementById("removeAllGroupsBtn"),
   addGroupBtn: document.getElementById("addGroupBtn"),
   generateBtn: document.getElementById("generateBtn"),
   organiseBtn: document.getElementById("organiseBtn"),
@@ -218,10 +219,14 @@ function renderGroups() {
 
   if (!state.groups.length) {
     addGroupRow("");
-    return;
+  } else {
+    state.groups.forEach((groupName) => addGroupRow(groupName));
   }
 
-  state.groups.forEach((groupName) => addGroupRow(groupName));
+  // Show/hide remove all groups button
+  if (el.removeAllGroupsBtn) {
+    el.removeAllGroupsBtn.style.display = state.groups.length > 0 ? 'block' : 'none';
+  }
 }
 
 function addGroupRow(groupName) {
@@ -340,6 +345,15 @@ el.addGroupBtn.addEventListener("click", () => {
     last.focus();
     last.select();
   }
+});
+
+el.removeAllGroupsBtn.addEventListener("click", async () => {
+  // Clear groups and assignments
+  state.groups = [];
+  await chrome.storage.local.set({ assignments: {} });
+  await saveGroupsFromUi();
+  renderGroups();
+  setStatus("All groups removed");
 });
 
 el.generateBtn.addEventListener("click", async () => {
