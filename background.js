@@ -552,7 +552,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const tabIds = tabs.map(t => t.tabId);
         if (tabIds.length === 0) continue;
         // Create a new window with its default tab, then move our tabs, then close the default tab
-        const newWin = await chrome.windows.create({ focused: false, populate: true });
+        const newWin = await chrome.windows.create({ focused: false });
         const defaultTabId = newWin.tabs?.[0]?.id;
         // Move each tab into the new window
         for (const tabId of tabIds) {
@@ -602,7 +602,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return;
       }
       // Create a new window with its default tab
-      const newWin = await chrome.windows.create({ focused: false, populate: true });
+      const newWin = await chrome.windows.create({ focused: false });
       const defaultTabId = newWin.tabs?.[0]?.id;
       // Move each provided tab into the new window
       for (const tabId of tabIds) {

@@ -24,6 +24,7 @@ const el = {
   viewToggle: document.getElementById("viewToggle"),
   searchInput: document.getElementById("searchInput"),
   extractBtn: document.getElementById("extractBtn"),
+  copyLinksBtn: document.getElementById("copyLinksBtn"),
   newGroupInput: document.getElementById("newGroupInput"),
   addGroupBtn: document.getElementById("addGroupBtn"),
   organiseMode: document.getElementById("organiseMode"),
@@ -677,6 +678,61 @@ function clearStatus() {
   }
 }
 
+function copyLinks() {
+  const visibleTabs = getVisibleTabs();
+  if (visibleTabs.length === 0) {
+    showError("No tabs to copy.");
+    return;
+  }
+  let output = "Tabs\n\n";
+  if (state.viewMode === 'groups') {
+    const order = [...state.groups, 'Ungrouped'];
+    const groupMap = new Map();
+    order.forEach(g => groupMap.set(g, []));
+    visibleTabs.forEach(tab => {
+      const group = state.assignments[tab.tabId] || 'Ungrouped';
+      if (groupMap.has(group)) {
+        groupMap.get(group).push(tab);
+      } else {
+        groupMap.get('Ungrouped').push(tab);
+      }
+    });
+    order.forEach((group, idx) => {
+      const tabs = groupMap.get(group);
+      if (!tabs || tabs.length === 0) return;
+      output += `${group}\n`;
+      tabs.forEach(tab => {
+        output += `${tab.title}\n${tab.url}\n`;
+      });
+      if (idx < order.length - 1) output += "\n";
+    });
+  } else {
+    const rankMap = getWindowRankMap();
+    const windowMap = new Map();
+    visibleTabs.forEach(tab => {
+      const winId = tab.windowId;
+      if (!windowMap.has(winId)) windowMap.set(winId, []);
+      windowMap.get(winId).push(tab);
+    });
+    const sortedIds = Array.from(windowMap.keys()).sort((a, b) => a - b);
+    sortedIds.forEach((winId, idx) => {
+      const tabs = windowMap.get(winId);
+      const rank = rankMap.get(winId);
+      output += `Window ${rank}\n`;
+      tabs.forEach(tab => {
+        output += `${tab.title}\n${tab.url}\n`;
+      });
+      if (idx < sortedIds.length - 1) output += "\n";
+    });
+  }
+  navigator.clipboard.writeText(output).then(() => {
+    showStatus("Copied!");
+    setTimeout(clearStatus, 2000);
+  }).catch(err => {
+    showError("Failed to copy: " + err.message);
+  });
+}
+
 function renderBoard() {
   setSubtitle();
   renderWindowDropZones();
@@ -742,7 +798,10 @@ async function refresh() {
   el.viewToggle.textContent = state.viewMode === 'groups' ? 'View: Windows' : 'View: Groups';
 
   updatePendingCounter();
+  // Preserve scroll position during refresh
+  const scrollPos = el.board ? el.board.scrollTop : 0;
   renderBoard();
+  if (el.board) el.board.scrollTop = scrollPos;
 }
 
 el.viewToggle.addEventListener("click", () => {
@@ -850,6 +909,8 @@ el.extractBtn.addEventListener("click", async () => {
     showError(error.message);
   }
 });
+
+el.copyLinksBtn.addEventListener("click", copyLinks);
 
 el.confirmDestructiveToggle.addEventListener("change", async () => {
   const newVal = el.confirmDestructiveToggle.checked;
